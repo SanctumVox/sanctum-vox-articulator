@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sanctum Vox — Interactive Articulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Fauna+One&family=Noto+Sans:ital,wght@0,400;0,700;1,400&display=swap&subset=latin,latin-ext" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-mode">
+  <!-- Splash Screen -->
+  <div id="splash-screen">
+    <img src="SV_Logo.png" class="splash-logo" alt="Sanctum Vox">
+    <h1 class="splash-title">Sanctum Vox</h1>
+    <p class="splash-subtitle">Interactive Articulator</p>
+    <p class="splash-tagline">Voice & Dialect Coaching for Actors</p>
+  </div>
+
+  <div id="app">
+    <!-- Header -->
+    <header id="header">
+      <div class="header-left">
+        <img src="SV_Logo.png" class="header-logo-img" alt="Sanctum Vox">
+        <h1 class="logo">Sanctum Vox</h1>
+        <span class="subtitle">Interactive Articulator</span>
+      </div>
+      <div class="header-controls">
+        <button id="btn-compare" class="header-btn" title="Comparison Mode">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+          Compare
+        </button>
+        <button id="btn-labels" class="header-btn active" title="Toggle Labels">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+          Labels
+        </button>
+        <button id="btn-airflow" class="header-btn" title="Toggle Airflow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/></svg>
+          Airflow
+        </button>
+        <button id="btn-cross-section" class="header-btn" title="Toggle Cross-Section View">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 6l10 6-10 6z"/></svg>
+          X-Section
+        </button>
+        <button id="btn-adjust" class="header-btn" title="Manual Adjustment">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          Adjust
+        </button>
+<button id="btn-theme" class="header-btn" title="Toggle Theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <button id="btn-about" class="header-btn" title="About">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div id="main-content">
+      <!-- 3D Viewport -->
+      <div id="viewport">
+        <canvas id="three-canvas"></canvas>
+        <!-- View Controls -->
+        <div id="view-controls">
+          <button class="view-btn active" data-view="side">Side</button>
+          <button class="view-btn" data-view="front">Front</button>
+          <button class="view-btn" data-view="top">Top</button>
+          <button class="view-btn" data-view="free">Free</button>
+        </div>
+        <!-- Playback Controls -->
+        <div id="playback-controls">
+          <button id="btn-prev" class="playback-btn" title="Previous Frame">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button id="btn-play" class="playback-btn play-btn" title="Play/Pause">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="icon-play"><path d="M8 5v14l11-7z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="icon-pause" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button id="btn-next" class="playback-btn" title="Next Frame">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+          <div class="speed-control">
+            <label>Speed</label>
+            <select id="speed-select">
+              <option value="0.1">0.1x</option>
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+          <button id="btn-loop" class="playback-btn" title="Loop">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          </button>
+        </div>
+        <!-- Currently Selected Sound Display -->
+        <div id="current-sound-display">
+          <span class="sound-symbol" id="current-symbol">—</span>
+          <span class="sound-name" id="current-name">Select a sound</span>
+          <button id="btn-play-sound" class="play-sound-btn" title="Play Sound">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          </button>
+          <button id="btn-mute" class="mute-btn" title="Mute/Unmute">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon-unmuted"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon-muted" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+          </button>
+        </div>
+        <!-- Voicing Indicator -->
+        <div id="voicing-indicator" class="voicing-off">
+          <div class="voicing-dot"></div>
+          <span class="voicing-label">Voiceless</span>
+        </div>
+        <!-- Adjust Panel (slide-in sliders for manual articulation control) -->
+        <div id="adjust-panel">
+          <div class="adjust-header">
+            <h3>Manual Adjust</h3>
+            <button id="adjust-reset" class="adjust-reset-btn" title="Reset to current sound">Reset</button>
+          </div>
+          <div class="adjust-content">
+            <div class="adjust-section">
+              <h4>Tongue</h4>
+              <div class="slider-row">
+                <label for="sl-body-height">Body Height</label>
+                <input type="range" id="sl-body-height" min="0" max="1" step="0.01" value="0.5">
+                <span class="slider-val" id="sv-body-height">0.50</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-body-front">Body Frontness</label>
+                <input type="range" id="sl-body-front" min="0" max="1" step="0.01" value="0.5">
+                <span class="slider-val" id="sv-body-front">0.50</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-tip-x">Tip Position</label>
+                <input type="range" id="sl-tip-x" min="0" max="1" step="0.01" value="0.5">
+                <span class="slider-val" id="sv-tip-x">0.50</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-tip-y">Tip Height</label>
+                <input type="range" id="sl-tip-y" min="0" max="1" step="0.01" value="0.35">
+                <span class="slider-val" id="sv-tip-y">0.35</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-root-adv">Root Advancement</label>
+                <input type="range" id="sl-root-adv" min="0" max="1" step="0.01" value="0.5">
+                <span class="slider-val" id="sv-root-adv">0.50</span>
+              </div>
+            </div>
+            <div class="adjust-section">
+              <h4>Lips</h4>
+              <div class="slider-row">
+                <label for="sl-lip-round">Rounding</label>
+                <input type="range" id="sl-lip-round" min="0" max="1" step="0.01" value="0.1">
+                <span class="slider-val" id="sv-lip-round">0.10</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-lip-open">Openness</label>
+                <input type="range" id="sl-lip-open" min="0" max="1" step="0.01" value="0.3">
+                <span class="slider-val" id="sv-lip-open">0.30</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-lip-prot">Protrusion</label>
+                <input type="range" id="sl-lip-prot" min="0" max="1" step="0.01" value="0">
+                <span class="slider-val" id="sv-lip-prot">0.00</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-lip-spread">Spread</label>
+                <input type="range" id="sl-lip-spread" min="0" max="1" step="0.01" value="0.5">
+                <span class="slider-val" id="sv-lip-spread">0.50</span>
+              </div>
+            </div>
+            <div class="adjust-section">
+              <h4>Other</h4>
+              <div class="slider-row">
+                <label for="sl-jaw">Jaw Openness</label>
+                <input type="range" id="sl-jaw" min="0" max="1" step="0.01" value="0.2">
+                <span class="slider-val" id="sv-jaw">0.20</span>
+              </div>
+              <div class="slider-row">
+                <label for="sl-velum">Velum Height</label>
+                <input type="range" id="sl-velum" min="0" max="1" step="0.01" value="1">
+                <span class="slider-val" id="sv-velum">1.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info Panel (inside viewport so it overlays 3D, not IPA chart) -->
+        <div id="info-panel">
+          <button id="info-toggle" class="info-toggle-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            Info
+          </button>
+          <div class="info-content">
+            <div id="info-symbol" class="info-symbol">—</div>
+            <h3 id="info-name">Select a sound</h3>
+            <div id="info-details">
+              <div class="info-row"><span class="info-label">Place:</span> <span id="info-place">—</span></div>
+              <div class="info-row"><span class="info-label">Manner:</span> <span id="info-manner">—</span></div>
+              <div class="info-row"><span class="info-label">Voicing:</span> <span id="info-voicing">—</span></div>
+            </div>
+            <div id="info-examples">
+              <h4>Examples</h4>
+              <div id="examples-content"></div>
+            </div>
+            <div id="info-coaching">
+              <h4>Coaching Notes</h4>
+              <p id="coaching-content"></p>
+            </div>
+            <div id="info-similar">
+              <h4>Compare With</h4>
+              <div id="similar-sounds"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IPA Panel -->
+      <div id="ipa-panel">
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="consonants">Consonants</button>
+          <button class="panel-tab" data-tab="vowels">Vowels</button>
+          <button class="panel-tab" data-tab="other">Other</button>
+          <button class="panel-tab" data-tab="accents" id="accents-tab" style="display:none">Accents</button>
+        </div>
+        <div class="panel-search">
+          <input type="text" id="ipa-search" placeholder="Search sounds (e.g. 'voiceless alveolar')">
+        </div>
+        <div id="tab-consonants" class="tab-content active">
+          <div id="consonant-chart"></div>
+        </div>
+        <div id="tab-vowels" class="tab-content">
+          <div id="vowel-chart"></div>
+        </div>
+        <div id="tab-other" class="tab-content">
+          <div id="other-chart"></div>
+        </div>
+        <div id="tab-accents" class="tab-content">
+          <div id="accent-grid"></div>
+          <div id="accent-detail" style="display:none">
+            <button id="accent-back" class="accent-back-btn">&larr; All Accents</button>
+            <div class="accent-header-row">
+              <h3 id="accent-name"></h3>
+              <span id="accent-difficulty" class="accent-difficulty-badge"></span>
+            </div>
+            <p id="accent-region" class="accent-region"></p>
+            <p id="accent-description" class="accent-desc"></p>
+
+            <div id="accent-features"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Vowel System <span class="accent-ref-label">Wells Lexical Sets</span></h4>
+            <div id="accent-lexical-sets"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Consonant Features</h4>
+            <div id="accent-consonants"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Key Mergers &amp; Splits</h4>
+            <div id="accent-mergers"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Example Sentences</h4>
+            <div id="accent-sentences"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Minimal Pairs</h4>
+            <div id="accent-minimal-pairs"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Prosody &amp; Intonation</h4>
+            <div id="accent-prosody"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Structured Exercises</h4>
+            <div id="accent-exercises"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Coaching Notes</h4>
+            <p id="accent-coaching"></p>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Famous Speakers</h4>
+            <div id="accent-speakers"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Regional Variations</h4>
+            <div id="accent-variations"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Historical Context</h4>
+            <p id="accent-history" class="accent-history-text"></p>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Practice Words</h4>
+            <div id="accent-practice"></div>
+
+            <div class="accent-section-divider"></div>
+            <h4 class="accent-section-title">Common Mistakes</h4>
+            <div id="accent-mistakes"></div>
+          </div>
+        </div>
+
+        <!-- Recent Sounds -->
+        <div id="recent-sounds">
+          <h4>Recent</h4>
+          <div id="recent-list"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- About Modal -->
+    <div id="about-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content">
+        <button id="about-close" class="modal-close">&times;</button>
+        <img src="SV_Logo.png" class="about-logo" alt="Sanctum Vox">
+        <h2 class="about-title">Sanctum Vox</h2>
+        <p class="about-edition">Interactive Articulator</p>
+        <p class="about-version">Version 1.0.0</p>
+        <div class="about-divider"></div>
+        <p class="about-tagline">Voice & Dialect Coaching<br>for Actors</p>
+        <div class="about-divider"></div>
+        <p class="about-credit">Created by Keith Higinbotham</p>
+        <p class="about-url">www.sanctumvox.com</p>
+        <div class="about-divider"></div>
+        <p class="about-acknowledge" style="font-size:10px; opacity:0.6; line-height:1.4; max-width:280px; margin:0 auto;">
+          IPA audio samples from Wikimedia Commons contributors, licensed under CC&nbsp;BY-SA&nbsp;3.0 / CC0.<br>
+          3D rendering powered by Three.js (MIT License).
+        </p>
+        <div class="about-legal" style="margin-top:12px; font-size:11px;">
+          <a href="privacy.html" target="_blank" style="color:#b89d65; text-decoration:none; margin:0 8px;">Privacy Policy</a>
+          <span style="opacity:0.3;">|</span>
+          <a href="terms.html" target="_blank" style="color:#b89d65; text-decoration:none; margin:0 8px;">Terms of Service</a>
+        </div>
+        <p class="about-copyright">&copy; 2026 Sanctum Vox. All rights reserved.</p>
+      </div>
+    </div>
+
+    <!-- Comparison Mode Overlay -->
+    <div id="comparison-overlay" style="display:none">
+      <div class="comparison-header">
+        <h3>Comparison Mode</h3>
+        <p>Select two sounds to compare their articulations</p>
+        <button id="exit-compare" class="header-btn">Exit Compare</button>
+      </div>
+      <div class="comparison-slots">
+        <div class="comparison-slot" id="compare-slot-1">
+          <span class="slot-label">Sound 1</span>
+          <span class="slot-symbol" id="compare-symbol-1">—</span>
+        </div>
+        <div class="comparison-diff" id="comparison-diff"></div>
+        <div class="comparison-slot" id="compare-slot-2">
+          <span class="slot-label">Sound 2</span>
+          <span class="slot-symbol" id="compare-symbol-2">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./lib/three.module.js",
+      "three/addons/": "./lib/addons/"
+    }
+  }
+  </script>
+  <script src="accent-data.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
