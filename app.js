@@ -1657,7 +1657,8 @@ function showAccentDetail(accentId) {
           e.stopPropagation();
           // Try to select the primary IPA symbol in the articulator
           const primaryIpa = set.ipa.replace(/[ːˑ̟̠̞̝̥̃̈̊ʰʲʷ~]/g, '').charAt(0);
-          if (primaryIpa) selectSound(primaryIpa);
+          const mapped = {'ɝ': 'ɜ', 'ɚ': 'ə'}[primaryIpa] || primaryIpa;
+          if (mapped) selectSound(mapped);
         });
         row.appendChild(ipaBtn);
 
@@ -1921,25 +1922,6 @@ document.getElementById('accent-back')?.addEventListener('click', () => {
   clearAccentHighlights();
 });
 
-// Hidden unlock: triple-click the logo to reveal Accents tab
-let logoClickCount = 0;
-let logoClickTimer = null;
-const logoEl = document.querySelector('.header-logo-img') || document.querySelector('.logo');
-if (logoEl) {
-  logoEl.addEventListener('click', () => {
-    logoClickCount++;
-    if (logoClickTimer) clearTimeout(logoClickTimer);
-    logoClickTimer = setTimeout(() => { logoClickCount = 0; }, 600);
-    if (logoClickCount >= 3) {
-      const accTab = document.getElementById('accents-tab');
-      if (accTab) {
-        accTab.style.display = '';
-        accTab.classList.add('accent-tab-reveal');
-      }
-      logoClickCount = 0;
-    }
-  });
-}
 
 // ============================================
 // INIT

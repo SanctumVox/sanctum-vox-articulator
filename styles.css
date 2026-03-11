@@ -1,5 +1,38 @@
 /* === Sanctum Vox Interactive Articulator — Styles === */
 
+/* === Local Font Faces === */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(fonts/cinzel-latin.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Fauna One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/fauna-one-latin.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(fonts/noto-sans-latin.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/noto-sans-italic-latin.woff) format('woff');
+}
+
 :root {
   /* Dark mode (default) — Sanctum Vox brand palette */
   --bg-primary: #0B1221;
