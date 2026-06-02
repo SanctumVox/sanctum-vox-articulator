@@ -412,6 +412,13 @@ const sounds = {
   'More retroflex version of /ɹ/. Some American English speakers and Mandarin "er" sound use this. Tongue curls back more than standard /ɹ/.',
   ['ɹ','ɽ','ʈ']),
 
+'ɹ̈': s('ɹ̈','Bunched R (American molar)','consonant','velar','approximant',true,
+  a({ tongue_tip:{target:'lower_teeth',contact:false,x:0.58,y:0.16}, tongue_body:{height:0.70,frontness:0.42}, tongue_root:{advancement:0.30}, lips:{rounding:0.15,openness:0.18,protrusion:0.05,spread:0}, jaw:{openness:0.18}, vocal_folds:{vibrating:true} }),
+  {type:'approximant',path:'oral',constriction_point:'palatal'},
+  {en:['red, very, car — most US speakers']},
+  'The "molar" or "bunched" R — the way a majority of General American speakers actually make their R. Unlike the tip-up (retroflex) /ɹ/, the tongue TIP points DOWN behind the lower teeth while the tongue BODY bunches up high toward the palate and molars, with the root pulled back into the pharynx. It sounds acoustically identical to the retroflex R (same low third formant), so the two are interchangeable — many speakers genuinely cannot tell which one they use.',
+  ['ɹ','ɻ']),
+
 'j': s('j','Voiced palatal approximant','consonant','palatal','approximant',true,
   a({ tongue_body:{height:0.68,frontness:0.8}, jaw:{openness:0.15}, vocal_folds:{vibrating:true} }),
   {type:'approximant',path:'oral',constriction_point:'palatal'},

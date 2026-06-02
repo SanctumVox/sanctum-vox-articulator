@@ -36,8 +36,42 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(viewport.clientWidth, viewport.clientHeight);
 renderer.setClearColor(0x0B1221);
 renderer.localClippingEnabled = false; // starts in 3D mode; enabled when cross-section toggled
+// Filmic colour pipeline — realistic light response and highlight roll-off for wet tissue
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+// Soft shadows add depth to the oral cavity
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
+
+// ---------------------------------------------------------------
+// Procedural studio environment (PMREM) — gives every PBR material
+// soft, realistic reflections so wet mucosa reads as wet, not plastic.
+// Built from a canvas gradient so the app stays fully offline (no HDR file).
+// ---------------------------------------------------------------
+function buildStudioEnvironment(rendererRef) {
+  const c = document.createElement('canvas');
+  c.width = 16; c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0.00, '#3a4252'); // cool soft "sky" overhead
+  g.addColorStop(0.45, '#6b6f78');
+  g.addColorStop(0.55, '#8a8580'); // warm horizon band → soft key reflection
+  g.addColorStop(1.00, '#2b2620'); // darker "floor"
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 16, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const pmrem = new THREE.PMREMGenerator(rendererRef);
+  const envRT = pmrem.fromEquirectangular(tex);
+  tex.dispose();
+  pmrem.dispose();
+  return envRT.texture;
+}
+scene.environment = buildStudioEnvironment(renderer);
 
 // Clipping plane at z=0 — slices internal structures to show mid-sagittal cross-section
 const clippingPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -47,14 +81,34 @@ const camera = new THREE.PerspectiveCamera(45, viewport.clientWidth / viewport.c
 camera.position.set(0.3, 0.1, 5.5);
 camera.lookAt(0.2, 0.1, 0);
 
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+// Lighting — 3-point studio rig tuned for the filmic pipeline.
+// The environment map supplies soft fill, so ambient is kept low to preserve
+// form-defining shadows (a flat high-ambient look is what reads as "low-end").
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.18);
 scene.add(ambientLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(2, 3, 5);
+
+// Key light — warm, slightly raised front-right, casts soft shadows
+const dirLight = new THREE.DirectionalLight(0xfff1e0, 2.1);
+dirLight.position.set(2.5, 3.5, 4.5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 20;
+dirLight.shadow.camera.left = -3;
+dirLight.shadow.camera.right = 3;
+dirLight.shadow.camera.top = 3;
+dirLight.shadow.camera.bottom = -3;
+dirLight.shadow.bias = -0.0008;
+dirLight.shadow.radius = 4;
+// Only recompute the shadow map while something is actually moving (see animate()).
+// Saves a full shadow pass every idle frame — meaningful on mobile/laptop GPUs.
+dirLight.shadow.autoUpdate = false;
+dirLight.shadow.needsUpdate = true;
 scene.add(dirLight);
-const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
-backLight.position.set(-2, -1, -3);
+
+// Fill light — cool, opposite side, no shadow, softens the dark side
+const backLight = new THREE.DirectionalLight(0xc8d4e0, 0.55);
+backLight.position.set(-3, -0.5, -3);
 scene.add(backLight);
 
 // Controls
@@ -66,10 +120,9 @@ controls.update();
 
 // Vocal Tract — defaults to full 3D; clipping plane used for cross-section toggle
 const vocalTract = new VocalTract(scene, [clippingPlane]);
-window._vt = vocalTract; // debug access
 
-// Add a front light for the 3D mouth-open view
-const frontLight = new THREE.DirectionalLight(0xffffff, 0.5);
+// Rim light — from front/camera side, grazes edges for separation and wet highlights
+const frontLight = new THREE.DirectionalLight(0xffffff, 0.7);
 frontLight.position.set(5, 1, 0);
 scene.add(frontLight);
 
@@ -552,6 +605,7 @@ function buildOtherChart() {
   container.innerHTML = '';
 
   const sections = [
+    { title: 'English R variants', symbols: ['ɹ', 'ɻ', 'ɹ̈'] },
     { title: 'Affricates', symbols: ['t͡ʃ', 'd͡ʒ', 't͡s', 'd͡z', 't͡ɕ', 'd͡ʑ'] },
     { title: 'Co-articulated', symbols: ['w', 'ɥ'] },
     { title: 'Clicks', symbols: ['ʘ', 'ǀ', 'ǃ', 'ǂ', 'ǁ'] },
@@ -843,18 +897,59 @@ function updateLabels() {
   }
 
   const positions = vocalTract.getArticulatorPositions();
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+
+  // Pass 1: project each label to screen space, collect the visible ones.
+  const placed = [];
   for (const [name, data] of Object.entries(labelElements)) {
     const pos3D = positions[name] || data.pos3D;
     const screenPos = pos3D.clone().project(camera);
-    const x = (screenPos.x * 0.5 + 0.5) * viewport.clientWidth;
-    const y = (-screenPos.y * 0.5 + 0.5) * viewport.clientHeight;
+    const x = (screenPos.x * 0.5 + 0.5) * vw;
+    const y = (-screenPos.y * 0.5 + 0.5) * vh;
 
-    if (screenPos.z < 1 && x > 0 && x < viewport.clientWidth && y > 0 && y < viewport.clientHeight) {
+    if (screenPos.z < 1 && x > 0 && x < vw && y > 0 && y < vh) {
       data.el.style.display = 'block';
-      data.el.style.left = x + 'px';
-      data.el.style.top = y + 'px';
+      // Cache intrinsic size once (text is static — avoids per-frame reflow).
+      if (!data.w) {
+        data.w = data.el.offsetWidth;
+        data.h = data.el.offsetHeight;
+      }
+      placed.push({ el: data.el, x, y, anchorX: x, anchorY: y, w: data.w, h: data.h });
     } else {
       data.el.style.display = 'none';
+    }
+  }
+
+  // Pass 2: declutter. Sort top-to-bottom, then push any label that overlaps
+  // an already-placed one (whose x-range intersects) downward by a minimum gap.
+  // Labels float free of full overlap while staying near their anchor point.
+  placed.sort((a, b) => a.y - b.y);
+  const GAP = 3;
+  const X_PAD = 6;
+  for (let i = 1; i < placed.length; i++) {
+    const cur = placed[i];
+    for (let j = 0; j < i; j++) {
+      const prev = placed[j];
+      const xOverlap = cur.x < prev.x + prev.w + X_PAD && prev.x < cur.x + cur.w + X_PAD;
+      if (xOverlap) {
+        const minY = prev.y + prev.h + GAP;
+        if (cur.y < minY) cur.y = minY;
+      }
+    }
+  }
+
+  // Pass 3: commit positions; draw a faint connector when a label was nudged
+  // away from its anchor so the link to the feature stays clear.
+  for (const p of placed) {
+    p.el.style.left = p.x + 'px';
+    p.el.style.top = p.y + 'px';
+    const dy = p.y - p.anchorY;
+    if (dy > 6) {
+      p.el.style.setProperty('--leader-h', dy + 'px');
+      p.el.classList.add('has-leader');
+    } else {
+      p.el.classList.remove('has-leader');
     }
   }
 }
@@ -928,6 +1023,7 @@ document.getElementById('adjust-reset').addEventListener('click', () => {
 
 // Read sliders and apply tongue position
 function applyTongueFromSliders() {
+  dirLight.shadow.needsUpdate = true; // geometry changes outside the tween loop
   const height = parseFloat(document.getElementById('sl-body-height').value);
   const frontness = parseFloat(document.getElementById('sl-body-front').value);
   const tipX = parseFloat(document.getElementById('sl-tip-x').value);
@@ -1249,14 +1345,106 @@ canvas.addEventListener('touchend', onHandlePointerUp);
 // ============================================
 // RESIZE HANDLER
 // ============================================
+let lastAspect = 1;
 function onResize() {
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;
-  camera.aspect = w / h;
+  const newAspect = w / h;
+  const aspectChanged = Math.abs(newAspect - lastAspect) > 0.3;
+  lastAspect = newAspect;
+
+  camera.aspect = newAspect;
+
+  // Widen FOV on portrait/narrow screens to fit the 3D model
+  if (newAspect < 1 && w < 500) {
+    // Phone portrait: aggressive FOV widening
+    camera.fov = Math.min(45 / newAspect * 0.65, 75);
+  } else if (newAspect < 1) {
+    // Tablet portrait: gentle FOV widening
+    camera.fov = Math.min(45 / newAspect * 0.5, 55);
+  } else if (w < 768) {
+    camera.fov = 50;
+  } else {
+    camera.fov = 45;
+  }
+
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
+
+  // Re-apply camera view if aspect ratio changed significantly (e.g. orientation change)
+  if (aspectChanged && state.currentView) {
+    setCameraView(state.currentView);
+  }
 }
 window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => {
+  setTimeout(onResize, 150);
+});
+
+// ============================================
+// MOBILE VIEW TOGGLE
+// ============================================
+const mobileToggle = document.getElementById('mobile-view-toggle');
+let currentMobileView = '3d';
+
+function switchMobileView(view) {
+  if (!mobileToggle) return;
+  const toggleBtns = mobileToggle.querySelectorAll('.mobile-toggle-btn');
+  toggleBtns.forEach(b => b.classList.remove('active'));
+  const targetBtn = mobileToggle.querySelector(`[data-mobile-view="${view}"]`);
+  if (targetBtn) targetBtn.classList.add('active');
+
+  if (view === '3d') {
+    viewport.classList.remove('mobile-hidden');
+    document.getElementById('ipa-panel').classList.remove('mobile-visible');
+    setTimeout(onResize, 50);
+  } else {
+    viewport.classList.add('mobile-hidden');
+    document.getElementById('ipa-panel').classList.add('mobile-visible');
+  }
+  currentMobileView = view;
+}
+window.switchMobileView = switchMobileView;
+
+if (mobileToggle) {
+  const toggleBtns = mobileToggle.querySelectorAll('.mobile-toggle-btn');
+  toggleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchMobileView(btn.dataset.mobileView);
+    });
+  });
+
+  // Swipe gesture support for switching views
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  const mainContent = document.getElementById('main-content');
+
+  mainContent.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  mainContent.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const dx = touchEndX - touchStartX;
+    const dy = touchEndY - touchStartY;
+    const dt = Date.now() - touchStartTime;
+
+    // Only register as swipe if: horizontal distance > 80px, more horizontal than vertical, under 400ms
+    if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 400) {
+      if (dx < 0 && currentMobileView === '3d') {
+        // Swipe left: show charts
+        switchMobileView('chart');
+      } else if (dx > 0 && currentMobileView === 'chart') {
+        // Swipe right: show 3D
+        switchMobileView('3d');
+      }
+    }
+  }, { passive: true });
+}
 
 // ============================================
 // ANIMATION LOOP
@@ -1284,6 +1472,12 @@ function animate() {
   animateAirflow(dt);
   updateLabels();
   updateHandlePositions();
+
+  // Refresh shadows only while the scene is in motion (camera move, articulation
+  // tween, or voicing). When idle, the last shadow map is reused — no wasted pass.
+  if (cameraAnimating || tweenMgr.active || vocalTract.voicingActive) {
+    dirLight.shadow.needsUpdate = true;
+  }
 
   // Loop handling
   if (state.looping && state.currentSound && !tweenMgr.active) {
@@ -1933,11 +2127,62 @@ buildAccentGrid();
 createLabels();
 animate();
 
-// Dismiss splash screen after 2.5 seconds
+// Dismiss splash screen after 2.5 seconds, then show tutorial if first visit
 setTimeout(() => {
   const splash = document.getElementById('splash-screen');
   if (splash) {
     splash.classList.add('fade-out');
-    setTimeout(() => splash.remove(), 600);
+    setTimeout(() => {
+      splash.remove();
+      // Show tutorial on first visit
+      if (!localStorage.getItem('sv_tutorial_seen')) {
+        showTutorial();
+      }
+    }, 600);
   }
 }, 2500);
+
+// ─────────────────────────────────────────
+// TUTORIAL
+// ─────────────────────────────────────────
+function showTutorial() {
+  const overlay = document.getElementById('tutorial-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+
+  let currentStep = 0;
+  const steps = overlay.querySelectorAll('.tutorial-step');
+  const dots = overlay.querySelectorAll('.tutorial-dot');
+  const nextBtn = document.getElementById('tutorial-next');
+  const skipBtn = document.getElementById('tutorial-skip');
+
+  function goToStep(n) {
+    steps.forEach(s => s.classList.remove('active'));
+    dots.forEach(d => d.classList.remove('active'));
+    steps[n].classList.add('active');
+    dots[n].classList.add('active');
+    currentStep = n;
+    // Update button text on last step
+    if (n === steps.length - 1) {
+      nextBtn.textContent = 'Get Started';
+    } else {
+      nextBtn.textContent = 'Next →';
+    }
+  }
+
+  function closeTutorial() {
+    overlay.style.display = 'none';
+    localStorage.setItem('sv_tutorial_seen', '1');
+  }
+
+  nextBtn.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      goToStep(currentStep + 1);
+    } else {
+      closeTutorial();
+    }
+  });
+
+  skipBtn.addEventListener('click', closeTutorial);
+}
+window.showTutorial = showTutorial;

@@ -209,8 +209,8 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
     false, 'catmullrom', 0.4
   );
 
-  const SEGS = 48;      // along spine — higher count for smoother surface
-  const RAD  = 16;       // radial segments around cross-section
+  const SEGS = 64;      // along spine — higher count for smoother surface
+  const RAD  = 24;       // radial segments around cross-section
   const pts  = spine.getPoints(SEGS);
 
   // Interpolate half-heights along spine
@@ -232,6 +232,7 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
   }
 
   const verts   = [];
+  const uvs     = [];
   const indices = [];
 
   for (let i = 0; i <= SEGS; i++) {
@@ -285,6 +286,8 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
       const vy = p.y + upY * dyScale;
 
       verts.push(vx, vy, dz);
+      // u runs root(0)→tip(1) along the length; v wraps around the cross-section.
+      uvs.push(i / SEGS, j / RAD);
     }
   }
 
@@ -301,6 +304,7 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
   // Cap at root end (i=0) — fan from center point
   const rootCenter = verts.length / 3;
   verts.push(pts[0].x, pts[0].y, 0);
+  uvs.push(0, 0.5);
   for (let j = 0; j < RAD; j++) {
     indices.push(rootCenter, j + 1, j);
   }
@@ -308,6 +312,7 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
   // Cap at tip end (i=SEGS) — fan from center point
   const tipCenter = verts.length / 3;
   verts.push(pts[SEGS].x, pts[SEGS].y, 0);
+  uvs.push(1, 0.5);
   const tipBase = SEGS * (RAD + 1);
   for (let j = 0; j < RAD; j++) {
     indices.push(tipCenter, tipBase + j, tipBase + j + 1);
@@ -315,6 +320,7 @@ function buildTongue3DGeometry(upperContour, lowerContour) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
@@ -443,6 +449,15 @@ export default class VocalTract {
 
     // Hide skin by default (no toggle button — articulators must be visible)
     this.skinGroup.visible = this.skinVisible;
+
+    // Opaque interior tissues cast & receive soft shadows for cavity depth.
+    // Translucent shells (skin, skull) are skipped — they'd self-shadow oddly.
+    this.group.traverse((o) => {
+      if (o.isMesh && o.material && !o.material.transparent) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
   }
 
   // =====================
@@ -679,9 +694,7 @@ export default class VocalTract {
         (t) => HALF * 0.62 * (0.6 + 0.4 * Math.sin(t * Math.PI)),
         { segments: 20, arcSegments: 10, archHeight: 0.12, concave: true, thickness: 0.04 }
       );
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xd4a0a0, side: THREE.DoubleSide, roughness: 0.8
-      });
+      const mat = this._mucosaMaterial(0xd4a0a0, { roughness: 0.6 });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.z = 0.01;
       this.group.add(mesh);
@@ -694,9 +707,7 @@ export default class VocalTract {
         { x: 0.95, y: 0.58 },
       ];
       const shape = smoothCurveShape(pts, true);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xd4a0a0, side: THREE.DoubleSide, roughness: 0.8
-      });
+      const mat = this._mucosaMaterial(0xd4a0a0, { roughness: 0.6 });
       const mesh = makeExtruded(shape, mat, DEPTH * 0.85);
       mesh.position.z = 0.01;
       this.group.add(mesh);
@@ -718,9 +729,7 @@ export default class VocalTract {
         (t) => HALF * 0.55 * (0.5 + 0.5 * Math.sin(t * Math.PI)),
         { segments: 12, arcSegments: 8, archHeight: 0.06, concave: true, thickness: 0.03 }
       );
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xdab0b0, side: THREE.DoubleSide, roughness: 0.7
-      });
+      const mat = this._mucosaMaterial(0xdab0b0, { roughness: 0.55 });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.z = 0.02;
       this.group.add(mesh);
@@ -731,9 +740,7 @@ export default class VocalTract {
         { x: 0.88, y: 0.66 }, { x: 0.95, y: 0.58 }, { x: 1.04, y: 0.52 },
       ];
       const shape = smoothCurveShape(pts, true);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xdab0b0, side: THREE.DoubleSide, roughness: 0.7
-      });
+      const mat = this._mucosaMaterial(0xdab0b0, { roughness: 0.55 });
       const mesh = makeExtruded(shape, mat, DEPTH * 0.85);
       mesh.position.z = 0.02;
       this.group.add(mesh);
@@ -757,18 +764,14 @@ export default class VocalTract {
         (t) => HALF * 0.55 * (1 - t * 0.4),
         { segments: 14, arcSegments: 8, archHeight: 0.08, concave: true, thickness: 0.05 }
       );
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xc490b0, side: THREE.DoubleSide, roughness: 0.75
-      });
+      const mat = this._mucosaMaterial(0xc490b0, { roughness: 0.5, clearcoat: 0.5, sheenColor: 0xcf8ab0 });
       const mesh = new THREE.Mesh(geo, mat);
       this.velumGroup.add(mesh);
       this.meshes.velum = mesh;
 
       // Uvula — small teardrop sphere
       const uvulaGeo = new THREE.SphereGeometry(0.05, 8, 8);
-      const uvulaMat = new THREE.MeshStandardMaterial({
-        color: 0xc490b0, roughness: 0.7
-      });
+      const uvulaMat = this._mucosaMaterial(0xc490b0, { roughness: 0.5, clearcoat: 0.5, sheenColor: 0xcf8ab0, side: THREE.FrontSide });
       const uvula = new THREE.Mesh(uvulaGeo, uvulaMat);
       uvula.position.set(-0.53, 0.28, 0);
       uvula.scale.set(0.6, 1.4, 0.6);
@@ -782,9 +785,7 @@ export default class VocalTract {
         { x: -0.18, y: 0.50 }, { x: -0.08, y: 0.54 },
       ];
       const shape = smoothCurveShape(pts, true);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xc490b0, side: THREE.DoubleSide, roughness: 0.75
-      });
+      const mat = this._mucosaMaterial(0xc490b0, { roughness: 0.5, clearcoat: 0.5, sheenColor: 0xcf8ab0 });
       const mesh = makeExtruded(shape, mat, DEPTH * 0.8);
       this.velumGroup.add(mesh);
       this.meshes.velum = mesh;
@@ -808,9 +809,7 @@ export default class VocalTract {
         (t) => HALF * 0.65,
         { segments: 16, arcSegments: 10, archHeight: 0.15, concave: false, thickness: 0.04 }
       );
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xb08080, side: THREE.DoubleSide, roughness: 0.85
-      });
+      const mat = this._mucosaMaterial(0xb08080, { roughness: 0.6, clearcoat: 0.3 });
       const mesh = new THREE.Mesh(geo, mat);
       this.group.add(mesh);
       this.meshes.pharynx = mesh;
@@ -822,9 +821,7 @@ export default class VocalTract {
         { x: -0.50, y: 0.85 },
       ];
       const shape = smoothCurveShape(pts, true);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xb08080, side: THREE.DoubleSide, roughness: 0.85
-      });
+      const mat = this._mucosaMaterial(0xb08080, { roughness: 0.6, clearcoat: 0.3 });
       const mesh = makeExtruded(shape, mat, DEPTH * 0.75);
       this.group.add(mesh);
       this.meshes.pharynx = mesh;
@@ -838,9 +835,7 @@ export default class VocalTract {
     if (this.is3D) {
       // Leaf-like shape using a scaled sphere
       const geo = new THREE.SphereGeometry(0.08, 10, 8);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xc09090, roughness: 0.8
-      });
+      const mat = this._mucosaMaterial(0xc09090, { roughness: 0.55, clearcoat: 0.35, side: THREE.FrontSide });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(-0.20, -0.45, 0);
       mesh.scale.set(1.0, 1.5, 0.8);
@@ -852,9 +847,7 @@ export default class VocalTract {
         { x: -0.18, y: -0.58 }, { x: -0.28, y: -0.52 },
       ];
       const shape = smoothCurveShape(pts, true);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xc09090, side: THREE.DoubleSide, roughness: 0.8
-      });
+      const mat = this._mucosaMaterial(0xc09090, { roughness: 0.55, clearcoat: 0.35 });
       const mesh = makeExtruded(shape, mat, DEPTH * 0.6);
       mesh.position.z = 0.02;
       this.group.add(mesh);
@@ -885,10 +878,7 @@ export default class VocalTract {
     if (this.is3D) {
       // Cylindrical housing
       const housingGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.35, 16, 1, true);
-      const housingMat = new THREE.MeshStandardMaterial({
-        color: 0x8a7070, transparent: true, opacity: 0.4,
-        side: THREE.DoubleSide, roughness: 0.85
-      });
+      const housingMat = this._mucosaMaterial(0x8a7070, { transparent: true, opacity: 0.4, roughness: 0.6, clearcoat: 0.2 });
       const housing = new THREE.Mesh(housingGeo, housingMat);
       housing.position.set(-0.38, -0.78, 0);
       housing.rotation.z = Math.PI / 2;
@@ -902,10 +892,7 @@ export default class VocalTract {
       housingShape.moveTo(housingPts[0].x, housingPts[0].y);
       for (let i = 1; i < housingPts.length; i++) housingShape.lineTo(housingPts[i].x, housingPts[i].y);
       housingShape.closePath();
-      const housingMat = new THREE.MeshStandardMaterial({
-        color: 0x8a7070, transparent: true, opacity: 0.4,
-        side: THREE.DoubleSide, depthWrite: false, roughness: 0.85
-      });
+      const housingMat = this._mucosaMaterial(0x8a7070, { transparent: true, opacity: 0.4, roughness: 0.6, clearcoat: 0.2, depthWrite: false });
       const housingMesh = makeExtruded(housingShape, housingMat, DEPTH * 0.6);
       this.larynxGroup.add(housingMesh);
     }
@@ -923,9 +910,7 @@ export default class VocalTract {
     if (this.is3D) {
       // Cylinder tube
       const tracheaGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.55, 16, 1, true);
-      const tracheaMat = new THREE.MeshStandardMaterial({
-        color: 0x8a7070, side: THREE.DoubleSide, roughness: 0.85
-      });
+      const tracheaMat = this._mucosaMaterial(0x8a7070, { roughness: 0.6, clearcoat: 0.25 });
       const trachea = new THREE.Mesh(tracheaGeo, tracheaMat);
       trachea.position.set(-0.33, -1.22, 0);
       this.group.add(trachea);
@@ -933,18 +918,14 @@ export default class VocalTract {
       // Tracheal rings
       for (let i = 0; i < 3; i++) {
         const ringGeo = new THREE.TorusGeometry(0.19, 0.02, 6, 16);
-        const ringMat = new THREE.MeshStandardMaterial({
-          color: 0x9a8a7a, roughness: 0.8
-        });
+        const ringMat = this._mucosaMaterial(0xc2b29a, { roughness: 0.4, clearcoat: 0.3, sheen: 0.15, sheenColor: 0xd8c8b0, side: THREE.FrontSide });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.position.set(-0.33, -1.05 - i * 0.15, 0);
         ring.rotation.x = Math.PI / 2;
         this.group.add(ring);
       }
     } else {
-      const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x8a7070, side: THREE.DoubleSide, roughness: 0.85
-      });
+      const wallMat = this._mucosaMaterial(0x8a7070, { roughness: 0.6, clearcoat: 0.2 });
       const lShape = new THREE.Shape();
       lShape.moveTo(-0.54, -0.95); lShape.lineTo(-0.48, -0.95);
       lShape.lineTo(-0.50, -1.5); lShape.lineTo(-0.56, -1.5);
@@ -963,9 +944,7 @@ export default class VocalTract {
         ringShape.moveTo(-0.52, y); ringShape.lineTo(-0.14, y);
         ringShape.lineTo(-0.14, y - 0.03); ringShape.lineTo(-0.52, y - 0.03);
         ringShape.closePath();
-        const ringMat = new THREE.MeshStandardMaterial({
-          color: 0x9a8a7a, side: THREE.DoubleSide, roughness: 0.8
-        });
+        const ringMat = this._mucosaMaterial(0xc2b29a, { roughness: 0.4, clearcoat: 0.3, sheen: 0.15, sheenColor: 0xd8c8b0 });
         const ring = makeExtruded(ringShape, ringMat, DEPTH * 0.45);
         ring.position.z = 0.01;
         this.group.add(ring);
@@ -1095,11 +1074,113 @@ export default class VocalTract {
   // ========================================
   // ========== TONGUE ==========
   // ========================================
+  // Shared wet-mucosa material — clearcoat "saliva" layer + soft-tissue sheen,
+  // so all oral surfaces read as moist living tissue under the env map.
+  _mucosaMaterial(color, opts = {}) {
+    const m = new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: opts.roughness ?? 0.55,
+      clearcoat: opts.clearcoat ?? 0.4,
+      clearcoatRoughness: opts.clearcoatRoughness ?? 0.4,
+      sheen: opts.sheen ?? 0.35,
+      sheenColor: new THREE.Color(opts.sheenColor ?? 0xff9a8a),
+      sheenRoughness: 0.75,
+      side: opts.side ?? THREE.DoubleSide,
+    });
+    if (opts.transparent) { m.transparent = true; m.opacity = opts.opacity ?? 1; }
+    if (opts.depthWrite !== undefined) m.depthWrite = opts.depthWrite;
+    return m;
+  }
+
+  // Tooth enamel — smooth, hard, faintly translucent off-white with a glossy coat.
+  _enamelMaterial(color = 0xeae6dc) {
+    return new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: 0.25,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  _makeTongueTextures() {
+    if (this._tongueTex) return this._tongueTex;
+    const W = 512, H = 256;
+    // --- Colour map: root (deep red) → tip (warm pink), median sulcus groove ---
+    const cc = document.createElement('canvas'); cc.width = W; cc.height = H;
+    const cx = cc.getContext('2d');
+    const grad = cx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0.00, '#9e4843'); // root — deeper, more vascular
+    grad.addColorStop(0.45, '#c06b64');
+    grad.addColorStop(0.80, '#d98279'); // blade
+    grad.addColorStop(1.00, '#e29a90'); // tip — palest
+    cx.fillStyle = grad; cx.fillRect(0, 0, W, H);
+
+    // Median sulcus — darker groove along the dorsum midline (v≈0.25), fading at ends
+    const sulcusY = H * 0.25;
+    const sg = cx.createLinearGradient(0, sulcusY - 8, 0, sulcusY + 8);
+    sg.addColorStop(0, 'rgba(90,40,38,0)');
+    sg.addColorStop(0.5, 'rgba(90,40,38,0.55)');
+    sg.addColorStop(1, 'rgba(90,40,38,0)');
+    cx.fillStyle = sg;
+    cx.fillRect(W * 0.10, sulcusY - 8, W * 0.82, 16);
+
+    // Papillae speckle — tiny mottling, denser on the front dorsum
+    for (let n = 0; n < 4200; n++) {
+      const u = Math.random();
+      const x = u * W;
+      const y = Math.random() * H;
+      // concentrate near the dorsum band (v 0.1–0.4) and toward the front
+      const dorsum = Math.exp(-Math.pow((y - H * 0.25) / (H * 0.16), 2));
+      const front = 0.4 + 0.6 * u;
+      if (Math.random() > dorsum * front) continue;
+      const r = 0.6 + Math.random() * 1.3;
+      const light = Math.random() > 0.5;
+      cx.fillStyle = light ? 'rgba(230,170,160,0.5)' : 'rgba(120,55,52,0.5)';
+      cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+    }
+
+    // --- Bump/roughness map: grayscale papillae relief on a mid-grey base ---
+    const bc = document.createElement('canvas'); bc.width = W; bc.height = H;
+    const bx = bc.getContext('2d');
+    bx.fillStyle = '#8a8a8a'; bx.fillRect(0, 0, W, H);
+    // groove reads as a recess (darker) in the bump map
+    bx.fillStyle = 'rgba(40,40,40,0.5)';
+    bx.fillRect(W * 0.10, sulcusY - 5, W * 0.82, 10);
+    for (let n = 0; n < 5000; n++) {
+      const u = Math.random();
+      const x = u * W, y = Math.random() * H;
+      const dorsum = Math.exp(-Math.pow((y - H * 0.25) / (H * 0.18), 2));
+      if (Math.random() > dorsum * (0.4 + 0.6 * u)) continue;
+      const r = 0.5 + Math.random() * 1.4;
+      const v = Math.random() > 0.5 ? 210 : 70;
+      bx.fillStyle = `rgba(${v},${v},${v},0.45)`;
+      bx.beginPath(); bx.arc(x, y, r, 0, Math.PI * 2); bx.fill();
+    }
+
+    const map = new THREE.CanvasTexture(cc);
+    map.colorSpace = THREE.SRGBColorSpace;
+    const bumpMap = new THREE.CanvasTexture(bc);
+    map.anisotropy = bumpMap.anisotropy = 4;
+    this._tongueTex = { map, bumpMap };
+    return this._tongueTex;
+  }
+
   _buildTongue() {
-    this.tongueMat = new THREE.MeshStandardMaterial({
-      color: 0xd4736e,
+    const { map, bumpMap } = this._makeTongueTextures();
+    this.tongueMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,            // tint comes from the colour map
+      map,
+      bumpMap,
+      bumpScale: 0.012,
+      roughnessMap: bumpMap,       // papillae break up the specular for a moist, non-plastic look
+      roughness: 0.5,
+      clearcoat: 0.55,             // thin saliva layer
+      clearcoatRoughness: 0.35,
+      sheen: 0.5,                  // soft-tissue backscatter
+      sheenColor: new THREE.Color(0xff8a7a),
+      sheenRoughness: 0.7,
       side: this.is3D ? THREE.FrontSide : THREE.DoubleSide,
-      roughness: 0.65
     });
     this.tongueMesh = null;
     this._rebuildTongueMesh();
@@ -1310,6 +1391,8 @@ export default class VocalTract {
       this.tongueMesh.position.z = 0.02;
     }
 
+    this.tongueMesh.castShadow = true;
+    this.tongueMesh.receiveShadow = true;
     this.group.add(this.tongueMesh);
     this.meshes.tongue = this.tongueMesh;
   }
@@ -1345,9 +1428,7 @@ export default class VocalTract {
   _buildUpperTeeth() {
     if (this.is3D) {
       // A few small 3D tooth boxes arranged in an arc
-      const toothMat = new THREE.MeshStandardMaterial({
-        color: 0xf0e8e0, roughness: 0.3, metalness: 0.05
-      });
+      const toothMat = this._enamelMaterial(0xf0e8e0);
       const toothGeo = new THREE.BoxGeometry(0.05, 0.18, 0.09);
 
       // Central incisors (2)
@@ -1375,9 +1456,7 @@ export default class VocalTract {
       shape.moveTo(1.08, 0.55); shape.lineTo(1.14, 0.55);
       shape.lineTo(1.15, 0.32); shape.lineTo(1.08, 0.30);
       shape.lineTo(1.05, 0.50); shape.closePath();
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xf0e8e0, roughness: 0.3, metalness: 0.05
-      });
+      const mat = this._enamelMaterial(0xf0e8e0);
       const mesh = makeExtruded(shape, mat, DEPTH * 0.5);
       mesh.position.z = 0.03;
       this.group.add(mesh);
@@ -1390,9 +1469,7 @@ export default class VocalTract {
   // ========================================
   _buildLowerTeeth() {
     if (this.is3D) {
-      const toothMat = new THREE.MeshStandardMaterial({
-        color: 0xf0e8e0, roughness: 0.3, metalness: 0.05
-      });
+      const toothMat = this._enamelMaterial(0xf0e8e0);
       const toothGeo = new THREE.BoxGeometry(0.04, 0.13, 0.08);
 
       // Raised from y:0.08 → y:0.22 so lower teeth sit just below upper teeth (y:0.42)
@@ -1411,9 +1488,7 @@ export default class VocalTract {
       shape.moveTo(1.04, 0.12); shape.lineTo(1.10, 0.12);
       shape.lineTo(1.12, 0.28); shape.lineTo(1.05, 0.30);
       shape.lineTo(1.02, 0.16); shape.closePath();
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xf0e8e0, roughness: 0.3, metalness: 0.05
-      });
+      const mat = this._enamelMaterial(0xf0e8e0);
       const mesh = makeExtruded(shape, mat, DEPTH * 0.5);
       mesh.position.z = 0.03;
       this.jawGroup.add(mesh);
@@ -1434,9 +1509,7 @@ export default class VocalTract {
       lipShape.quadraticCurveTo(1.48, 0.53, 1.44, 0.44);
       lipShape.quadraticCurveTo(1.36, 0.38, 1.24, 0.40);
       lipShape.quadraticCurveTo(1.16, 0.44, 1.16, 0.56);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xc46868, roughness: 0.5, metalness: 0.02
-      });
+      const mat = this._mucosaMaterial(0xc46868, { roughness: 0.45, clearcoat: 0.5, sheenColor: 0xd06a6a });
       this.upperLipMesh = makeExtruded(lipShape, mat, DEPTH * 0.7);
       this.upperLipMesh.renderOrder = 2;
       this.upperLipMesh.position.z = 0.04;
@@ -1459,9 +1532,7 @@ export default class VocalTract {
     lipShape.quadraticCurveTo(1.48, 0.26, 1.44, 0.34);
     lipShape.quadraticCurveTo(1.36, 0.38, 1.24, 0.36);
     lipShape.quadraticCurveTo(1.16, 0.32, 1.16, 0.26);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xc46868, roughness: 0.5, metalness: 0.02
-    });
+    const mat = this._mucosaMaterial(0xc46868, { roughness: 0.45, clearcoat: 0.5, sheenColor: 0xd06a6a });
     this.lowerLipMesh = makeExtruded(lipShape, mat, DEPTH * 0.7);
     this.lowerLipMesh.renderOrder = 2;
     this.lowerLipMesh.position.z = 0.04;
@@ -1485,9 +1556,7 @@ export default class VocalTract {
       this.lowerLipMesh.geometry.dispose();
     }
 
-    const lipMat = new THREE.MeshStandardMaterial({
-      color: 0xc46868, roughness: 0.5, metalness: 0.02
-    });
+    const lipMat = this._mucosaMaterial(0xc46868, { roughness: 0.45, clearcoat: 0.5, sheenColor: 0xd06a6a });
 
     // Mouth center and size — now positioned right in front of teeth
     const cx = 1.30 + protrusion * 0.12;
@@ -1824,6 +1893,18 @@ export default class VocalTract {
       clampY(t.tip);
     }
 
+    // Guarantee monotonic front-to-back ordering of the control points.
+    // Anatomically root→body→front→blade→tip always advance toward the teeth;
+    // if a pose (or a mid-tween interpolation, or contradictory manual sliders)
+    // pushes a rear point ahead of a forward one, the swept spine doubles back
+    // on itself and the mesh self-intersects — the "glitch". Enforcing a minimum
+    // forward step eliminates that failure mode without affecting valid poses.
+    const MIN_DX = 0.06;
+    t.body.x  = Math.max(t.body.x,  t.root.x  + MIN_DX);
+    t.front.x = Math.max(t.front.x, t.body.x  + MIN_DX);
+    t.blade.x = Math.max(t.blade.x, t.front.x + MIN_DX);
+    t.tip.x   = Math.max(t.tip.x,   t.blade.x + MIN_DX);
+
     this._rebuildTongueMesh();
   }
 
@@ -1855,10 +1936,9 @@ export default class VocalTract {
     upperShape.quadraticCurveTo(1.36 + prot, 0.38 + open * 0.1, 1.24 + prot, 0.40 + open * 0.05);
     upperShape.quadraticCurveTo(1.16 - spr, 0.44 + open * 0.05, 1.16 - spr, 0.56 + open * 0.3);
 
-    const lipMat = new THREE.MeshStandardMaterial({
-      color: 0xc46868, roughness: 0.5, metalness: 0.02,
-      clippingPlanes: this.clippingPlanes, clipShadows: true
-    });
+    const lipMat = this._mucosaMaterial(0xc46868, { roughness: 0.45, clearcoat: 0.5, sheenColor: 0xd06a6a });
+    lipMat.clippingPlanes = this.clippingPlanes;
+    lipMat.clipShadows = true;
     const lipWidth = DEPTH * 0.7 * (1 - rounding * 0.3);
     this.upperLipMesh = makeExtruded(upperShape, lipMat, lipWidth);
     this.upperLipMesh.renderOrder = 2;

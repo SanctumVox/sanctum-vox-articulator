@@ -93,7 +93,14 @@ body {
   color: var(--text-primary);
   overflow: hidden;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* === Splash Screen === */
@@ -164,6 +171,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* track the visible viewport (mobile URL bar, in-app webview) */
 }
 
 /* === Header === */
@@ -1154,6 +1162,38 @@ body {
   background: var(--text-muted);
 }
 
+/* === Mobile View Toggle === */
+#mobile-view-toggle {
+  display: none;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding: 4px;
+  gap: 4px;
+}
+
+.mobile-toggle-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mobile-toggle-btn.active {
+  background: var(--bg-active);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* === Responsive === */
 @media (max-width: 1200px) {
   #ipa-panel {
@@ -1164,15 +1204,38 @@ body {
 @media (max-width: 900px) {
   #main-content {
     flex-direction: column;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  #mobile-view-toggle {
+    display: flex;
+    z-index: 20;
+    position: relative;
   }
   #ipa-panel {
     width: 100%;
-    height: 45vh;
+    flex: 1;
+    min-height: 0;
     border-left: none;
-    border-top: 1px solid var(--border);
+    overflow: hidden;
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+  #ipa-panel.mobile-visible {
+    display: flex;
+    position: relative;
   }
   #viewport {
-    height: 55vh;
+    flex: 1;
+    min-height: 0;
+  }
+  #viewport.mobile-hidden {
+    display: none;
   }
   #info-panel {
     right: 0;
@@ -1335,6 +1398,20 @@ body {
   transition: opacity 0.2s;
 }
 
+/* Faint connector drawn upward to the anchor point when a label has been
+   nudged downward by the declutter pass. Keeps the link to the feature clear. */
+.articulator-label.has-leader::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  bottom: 100%;
+  width: 1px;
+  height: var(--leader-h, 0px);
+  background: linear-gradient(to bottom, transparent, var(--border));
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 /* Search highlight */
 .ipa-btn.search-match {
   border-color: var(--accent);
@@ -1362,8 +1439,7 @@ body {
   }
   .header-btn svg { width: 14px; height: 14px; }
   .header-btn span { display: none; }
-  #viewport { height: 45vh; }
-  #ipa-panel { height: 55vh; }
+  /* viewport and ipa-panel sizing handled by mobile toggle */
   #view-controls { top: 8px; left: 8px; gap: 4px; }
   .view-btn { padding: 6px 10px; font-size: 11px; min-height: 36px; }
   #current-sound-display { top: 8px; padding: 6px 12px; gap: 6px; }
@@ -1375,6 +1451,8 @@ body {
   #adjust-panel { width: 220px; }
   #comparison-overlay { min-width: unset; width: 100%; }
   .comparison-slots { flex-direction: column; gap: 8px; }
+  #tab-consonants { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #consonant-chart { min-width: 560px; }
 }
 
 /* === Mobile: Phone (< 480px) === */
@@ -1383,10 +1461,10 @@ body {
   .header-logo-img { display: none; }
   .logo { font-size: 12px; letter-spacing: 1px; }
   .header-btn { padding: 6px; min-height: 32px; min-width: 32px; }
-  #viewport { height: 40vh; }
-  #ipa-panel { height: 60vh; overflow-y: auto; }
-  #consonant-chart { font-size: 10px; }
-  .ipa-btn { min-width: 28px; min-height: 28px; padding: 2px; font-size: 13px; }
+  /* viewport and ipa-panel sizing handled by mobile toggle */
+  #consonant-chart { font-size: 10px; min-width: 580px; }
+  #tab-consonants { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ipa-btn { min-width: 36px; min-height: 36px; padding: 4px; font-size: 14px; }
   .vowel-btn { width: 30px; height: 30px; font-size: 13px; }
   .recent-btn { padding: 4px 8px; min-height: 28px; }
   .panel-tab { padding: 8px 12px; font-size: 11px; }
@@ -2078,4 +2156,121 @@ body {
   .exercise-instructions { padding-left: 0; }
   .exercise-drills { padding-left: 0; }
   .speaker-card { flex-direction: column; gap: 2px; }
+}
+
+/* === Tutorial Overlay === */
+#tutorial-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tutorial-backdrop {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.tutorial-card {
+  position: relative;
+  background: linear-gradient(160deg, #18233A 0%, #0B1221 100%);
+  border: 1px solid rgba(196, 158, 108, 0.3);
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.tutorial-step-indicator {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(196, 158, 108, 0.2);
+  transition: all 0.3s;
+}
+
+.tutorial-dot.active {
+  background: #C49E6C;
+  width: 24px;
+  border-radius: 4px;
+}
+
+.tutorial-step {
+  display: none;
+}
+
+.tutorial-step.active {
+  display: block;
+}
+
+.tutorial-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+}
+
+.tutorial-card h2 {
+  font-family: 'Cinzel', serif;
+  color: #C49E6C;
+  font-size: 18px;
+  margin-bottom: 14px;
+  letter-spacing: 0.05em;
+}
+
+.tutorial-card p {
+  font-family: 'EB Garamond', Georgia, serif;
+  color: rgba(220, 215, 205, 0.8);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.tutorial-card p strong {
+  color: #C49E6C;
+}
+
+.tutorial-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 28px;
+  gap: 12px;
+}
+
+.tutorial-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.tutorial-skip {
+  background: transparent;
+  color: rgba(196, 158, 108, 0.5);
+  border: 1px solid rgba(196, 158, 108, 0.2);
+}
+
+.tutorial-next {
+  background: rgba(196, 158, 108, 0.15);
+  color: #C49E6C;
+  border: 1px solid rgba(196, 158, 108, 0.4);
+  flex: 1;
+}
+
+.tutorial-next:hover {
+  background: rgba(196, 158, 108, 0.25);
 }
