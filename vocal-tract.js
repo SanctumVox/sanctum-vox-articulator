@@ -1829,11 +1829,18 @@ export default class VocalTract {
 
     if (params.root) {
       const adv = params.root.advancement ?? 0.5;
-      t.root.x = -0.58 + adv * 0.25;
-      // Root Y: raise base to reduce the steep back-to-body slope that makes
-      // neutral/open vowels look like the back is raised. For low vowels (h<0.55),
-      // boost root further so the tongue profile looks flat.
-      const rootLift = Math.max(0, 0.55 - h) * 0.28;
+      // Backness of the tongue body (0 = fully back, 1 = fully front), derived
+      // from where the body was placed. Back vowels retract the root further.
+      const bodyFrontness = Math.max(0, Math.min(1, (t.body.x + 0.35) / 0.85));
+      // Back, low vowels (/ɑ/, /ɒ/) pull the root back toward the pharyngeal
+      // wall, narrowing the lower pharynx — the constriction you *feel* for "ah".
+      const backRetract = Math.max(0, 0.55 - h) * (1 - bodyFrontness) * 0.07;
+      t.root.x = -0.58 + adv * 0.25 - backRetract;
+      // Root Y: for FRONT/CENTRAL low vowels, lift the root so the profile reads
+      // flat (avoids a false "raised back"). For BACK low vowels, keep the root
+      // low so the natural back hump and retraction of /ɑ/ are preserved — the
+      // flattening was erasing exactly the gesture that makes /ɑ/ feel backed.
+      const rootLift = Math.max(0, 0.55 - h) * 0.28 * (0.3 + 0.7 * bodyFrontness);
       t.root.y = (-0.30 + adv * 0.15) + rootLift;
     }
 
