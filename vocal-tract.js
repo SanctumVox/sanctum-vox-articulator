@@ -1180,7 +1180,10 @@ export default class VocalTract {
       sheen: 0.5,                  // soft-tissue backscatter
       sheenColor: new THREE.Color(0xff8a7a),
       sheenRoughness: 0.7,
-      side: this.is3D ? THREE.FrontSide : THREE.DoubleSide,
+      // DoubleSide so the swept-tube end caps never read as a hollow opening even
+      // if a cap winds inward — the tongue is an opaque closed mesh, so interior
+      // faces are occluded and there is no visual cost.
+      side: THREE.DoubleSide,
     });
     this.tongueMesh = null;
     this._rebuildTongueMesh();
