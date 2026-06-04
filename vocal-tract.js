@@ -1240,34 +1240,40 @@ export default class VocalTract {
       { x: t.tip.x,           y: t.tip.y + 0.03 },           // tip
     ];
 
-    // Lower contour: whichever is HIGHER of (a) jaw floor or (b) upper - maxThickness.
-    // When the tongue is low, it rests on the jaw floor.
-    // When the tongue body rises (close vowels, velars), the lower surface lifts off
-    // the jaw and tracks the upper contour at a fixed max thickness.
-    const MAX_THICKNESS = 0.13;  // max tongue thickness in cross-section (~13mm)
+    // Lower contour. The tongue is a muscular hydrostat anchored to the floor of
+    // the mouth: the root and body sit ON the floor (genioglossus/mylohyoid) and
+    // THICKEN as the dorsum rises — they do not float. Only the blade and tip lift
+    // free of the floor (apical raising for /t/, /l/, /ɹ/, retroflex, etc.).
+    // So the back/mid underside HUGS the jaw floor; the blade/tip track the upper
+    // surface at a fixed thickness so a raised tip shows the gap beneath it.
+    const MAX_THICKNESS = 0.13;
     const bladeUpper = t.blade.y + 0.08;
     const tipUpper = t.tip.y + 0.03;
 
-    // Helper: lower Y = max(jaw floor, upper_y - MAX_THICKNESS)
-    const lowerY = (xPos, upperY) => {
-      const jawFloor = jawTopY(xPos) + 0.01;
-      return Math.max(jawFloor, upperY - MAX_THICKNESS);
-    };
+    // Underside that rests on the floor of the mouth (keeps the tongue rooted).
+    const floorY = (xPos) => jawTopY(xPos) + 0.01;
+    // Underside that tracks the upper surface at fixed thickness (for the free tip).
+    const liftY = (xPos, upperY) => Math.max(floorY(xPos), upperY - MAX_THICKNESS);
 
     const bodyUpper = t.body.y + 0.14;
     const frontUpper = t.front.y + 0.11;
     const midRBupper = midRBy + 0.14;
     const rootUpper = t.root.y + 0.08;
+    // Blend the front underside from floor-anchored (toward the body) to lift-capable
+    // (toward the blade) so a raised blade/tip lifts cleanly without tearing the body.
+    const frontFloor = floorY(t.front.x);
+    const frontLift = liftY(t.front.x, frontUpper);
+    const frontLower = Math.min(frontFloor, frontLift) * 0.6 + Math.max(frontFloor, frontLift) * 0.4;
     const lowerCtrl = [
       { x: -0.55,             y: -0.42 },                           // pharyngeal anchor (below upper)
-      { x: t.root.x - 0.05,  y: t.root.y - 0.10 },                 // root underside
-      { x: t.root.x,          y: lowerY(t.root.x, rootUpper) },     // root — jaw or thickness limit
-      { x: midRBx,            y: lowerY(midRBx, midRBupper) },      // mid root-body
-      { x: t.body.x,          y: lowerY(t.body.x, bodyUpper) },     // body — jaw or thickness limit
-      { x: t.front.x,         y: lowerY(t.front.x, frontUpper) },   // front — jaw or thickness limit
+      { x: t.root.x - 0.05,  y: t.root.y - 0.10 },                 // root underside (into throat)
+      { x: t.root.x,          y: floorY(t.root.x) },                // root — anchored to floor
+      { x: midRBx,            y: floorY(midRBx) },                  // mid root-body — anchored
+      { x: t.body.x,          y: floorY(t.body.x) },                // body — anchored to floor
+      { x: t.front.x,         y: frontLower },                      // front — mostly anchored
       { x: t.blade.x,         y: bladeUpper - 0.06 },               // blade rises toward dorsum
       { x: midBTx,            y: (bladeUpper + tipUpper) / 2 - 0.04 }, // mid blade-tip
-      { x: t.tip.x,           y: tipUpper - 0.04 },                 // tip — 4mm below dorsum (blunt)
+      { x: t.tip.x,           y: tipUpper - 0.04 },                 // tip — free to lift off floor
     ];
 
     // Resample both contours to the same point count via CatmullRom
@@ -1318,17 +1324,20 @@ export default class VocalTract {
     const bladeUpper = t.blade.y + 0.08;
     const tipUpper = t.tip.y + 0.03;
 
-    // Max thickness limit (same as _getTongueContours)
+    // Underside hugs the floor of the mouth through the root/body (anchored); the
+    // blade/tip track the upper surface so a raised tip lifts free. Matches the
+    // muscular tongue in the MRI — it never floats off the oral floor.
     const MAX_THICKNESS = 0.13;
-    const lowerY = (xPos, upperY) => {
-      const jawFloor = jawTopY(xPos) + 0.01;
-      return Math.max(jawFloor, upperY - MAX_THICKNESS);
-    };
+    const floorY = (xPos) => jawTopY(xPos) + 0.01;
+    const liftY = (xPos, upperY) => Math.max(floorY(xPos), upperY - MAX_THICKNESS);
 
     const bodyUpper = t.body.y + 0.14;
     const frontUpper = t.front.y + 0.11;
     const midRBupper = midRBy + 0.14;
     const rootUpper = t.root.y + 0.08;
+    const frontFloor = floorY(t.front.x);
+    const frontLift = liftY(t.front.x, frontUpper);
+    const frontLower = Math.min(frontFloor, frontLift) * 0.6 + Math.max(frontFloor, frontLift) * 0.4;
 
     const pts = [
       // Upper contour (pharyngeal anchor → root → tip)
@@ -1341,14 +1350,14 @@ export default class VocalTract {
       { x: t.blade.x,         y: bladeUpper },
       { x: midBTx,            y: midBTy + 0.05 },
       { x: t.tip.x,           y: tipUpper },
-      // Lower contour (tip → root → pharyngeal anchor) — jaw or thickness-limited
+      // Lower contour (tip → root → pharyngeal anchor) — floor-anchored back/mid
       { x: t.tip.x,           y: tipUpper - 0.04 },
       { x: midBTx,            y: (bladeUpper + tipUpper) / 2 - 0.04 },
       { x: t.blade.x,         y: bladeUpper - 0.06 },
-      { x: t.front.x,         y: lowerY(t.front.x, frontUpper) },
-      { x: t.body.x,          y: lowerY(t.body.x, bodyUpper) },
-      { x: midRBx,            y: lowerY(midRBx, midRBupper) },
-      { x: t.root.x,          y: lowerY(t.root.x, rootUpper) },
+      { x: t.front.x,         y: frontLower },
+      { x: t.body.x,          y: floorY(t.body.x) },
+      { x: midRBx,            y: floorY(midRBx) },
+      { x: t.root.x,          y: floorY(t.root.x) },
       { x: t.root.x - 0.05,  y: t.root.y - 0.10 },
       { x: -0.55,             y: -0.42 },
     ];
